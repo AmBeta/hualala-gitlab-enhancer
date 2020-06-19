@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         哗啦啦 gitlab 增强工具
 // @namespace    https://greasyfork.org/
-// @version      0.12
+// @version      0.13
 // @description  优化哗啦啦 gitlab 的使用体验，包括 md 文档阅读器等
 // @author       AmBeta
 // @match        *://git.hualala.com/*
@@ -54,6 +54,17 @@
       onerror: err => reject(err)
     });
   });
+
+  const debounce = function debounce(fn, timeout) {
+    const self = this;
+    let timer = 0;
+    return (...args) => {
+      if (timer > 0) clearTimeout(timer);
+      timer = setTimeout(() => {
+        fn.call(self, ...args);
+      }, timeout);
+    };
+  };
 
   //================== Utility methods =======================
   /** 生成唯一ID */
@@ -243,19 +254,25 @@
       files = await getFileTree();
       localStorage.setItem(cacheKey, JSON.stringify({ id: commitID, files }));
     }
-    
-    $('<div class="file-tree-container" />')
+
+    // 初始化 jstree 插件
+    const jstree = $('<div />')
       // init jstree
       .jstree({
         core: {
           data: files,
         },
-        plugins: ['wholerow', 'types', 'state'],
+        plugins: ['wholerow', 'types', 'state', 'search'],
         state: {
           filter: (state) => {
             delete state.core.selected;
             return state;
           },
+        },
+        search: {
+          show_only_matches: true,
+          search_leaves_only: true,
+          close_opened_onclear: true,
         },
         types: {
           default:   { icon: 'default-icon' },
@@ -288,21 +305,38 @@
         },
       })
       // bind events
-      .on('ready.jstree', (evt, { instance }) => {
+      .on('ready.jstree', (_, { instance }) => {
         if (currentID) {
           instance.select_node(currentID);
           instance.open_node(currentID);
         }
       })
-      .on('select_node.jstree', (evt, { node, instance }) => {
+      .on('select_node.jstree', (_, { node, instance }) => {
         const { id, type, data } = node;
         const { pathname } = data;
         if (type === 'dir') {
           instance[instance.is_open(id) ? 'close_node' : 'open_node'](id);
         } else if (location.pathname !== encodeURI(pathname)) {
+          instance.clear_search();
           location = pathname;
         }
+      });
+    // 添加搜索操作
+    const doSearch = debounce((keyword) => {
+      jstree.data('jstree').search(keyword);
+    }, 200);
+    const searchInput = $('<input placeholder="搜索文件..." />')
+      .on('input', (evt) => {
+        if (evt.originalEvent.isComposing) return;
+        doSearch(evt.target.value);
       })
+      .on('compositionend', (evt) => {
+        doSearch(evt.target.value);
+      });
+    // 添加到文档树
+    $('<div class="file-tree-container"></div>')
+      .append(searchInput)
+      .append(jstree)
       .appendTo(document.body);
   }
 
@@ -350,6 +384,17 @@
         overflow: auto;
         background: #fafafa;
         border-right: 1px solid #e5e5e5;
+      }
+      .file-tree-container>input {
+        width: 100%;
+        border: none;
+        padding: 2px 6px;
+        background: #fafafa;
+        transition: all .3s;
+      }
+      .file-tree-container>input:focus {
+        outline: none;
+        background: #ffffff;
       }
       .container-limited {
         width: 70%;
