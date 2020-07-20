@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         哗啦啦 gitlab 增强工具
 // @namespace    https://greasyfork.org/
-// @version      0.13
+// @version      0.14
 // @description  优化哗啦啦 gitlab 的使用体验，包括 md 文档阅读器等
 // @author       AmBeta
 // @match        *://git.hualala.com/*
@@ -255,6 +255,8 @@
       localStorage.setItem(cacheKey, JSON.stringify({ id: commitID, files }));
     }
 
+    // 初始化容器
+    const container = $('<div class="file-tree-container"></div>');
     // 初始化 jstree 插件
     const jstree = $('<div />')
       // init jstree
@@ -333,10 +335,27 @@
       .on('compositionend', (evt) => {
         doSearch(evt.target.value);
       });
+    // 添加列宽拖动功能
+    const dragger = $('<div class="dragger"></div>');
+    let startX = 0;
+    let startWidth = 0;
+    let mousemoveHandler = (evt) => {
+      const movement = evt.pageX - startX;
+      const width = Math.max(5, startWidth + movement);
+      container.css('width', `${width}px`);
+    };
+    dragger.on('mousedown', (evt) => {
+      startX = evt.pageX;
+      startWidth = parseInt(container.css('width'));
+      document.addEventListener('mousemove', mousemoveHandler);
+    }).on('mouseup', () => {
+      document.removeEventListener('mousemove', mousemoveHandler);
+    });
     // 添加到文档树
-    $('<div class="file-tree-container"></div>')
+    container
       .append(searchInput)
       .append(jstree)
+      .append(dragger)
       .appendTo(document.body);
   }
 
@@ -383,7 +402,6 @@
         padding-bottom: 102px;
         overflow: auto;
         background: #fafafa;
-        border-right: 1px solid #e5e5e5;
       }
       .file-tree-container>input {
         width: 100%;
@@ -398,6 +416,20 @@
       }
       .container-limited {
         width: 70%;
+      }
+      .file-tree-container .dragger {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        right: 0;
+        width: 1px;
+        background: #e5e5e5;
+        transition: all .3s;
+        cursor: col-resize;
+      }
+      .file-tree-container .dragger:hover {
+        width: 2px;
+        background: #ddd;
       }
       .jstree-default .jstree-icon:empty {
         width: 20px;
