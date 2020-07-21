@@ -425,7 +425,7 @@
         width: 1px;
         background: #e5e5e5;
         transition: all .3s;
-        cursor: col-resize;
+        cursor: ew-resize;
       }
       .file-tree-container .dragger:hover {
         width: 2px;
